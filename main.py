@@ -3,7 +3,6 @@ import os
 import sys
 import scipy.sparse as sparse
 
-
 """
 This project has to do the following:
 
@@ -23,8 +22,10 @@ columns for similarity check
 
 """
 
+
 def minhashing(data):
     return NotImplementedError
+
 
 def lsh(minhashed):
     """
@@ -34,14 +35,17 @@ def lsh(minhashed):
     """
     return NotImplementedError
 
+
 def write_file(data):
     return NotImplementedError
+
 
 def calculate_similarity(data):
     minhashed_data = minhashing(data)
     lsh_output = lsh(minhashed_data)
 
     return NotImplementedError
+
 
 def convert_data(data):
     """
@@ -51,12 +55,12 @@ def convert_data(data):
     """
 
     # Get unique values for user and movies
-    num_users = np.max(data[:,0])+1
-    num_movies = np.max(data[:,1])+1
+    num_users = np.max(data[:, 0]) + 1
+    num_movies = np.max(data[:, 1]) + 1
 
     matrix_values = np.ones(data.shape[0])
 
-    csr_matrix = sparse.csr_matrix((matrix_values, (data[:,0], data[:,1])), shape=(num_users, num_movies))
+    csr_matrix = sparse.csr_matrix((matrix_values, (data[:, 0], data[:, 1])), shape=(num_users, num_movies))
 
     # Now get the ones for each element
     return csr_matrix
