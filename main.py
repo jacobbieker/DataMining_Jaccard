@@ -13,18 +13,29 @@ Need to implement minshashing and LSH
 
 Jaccard Similarity
 
+csc and csr
+
+row for minhasing
+
+columns for similarity check
+
+
+
 """
 
-def minhashing():
+def minhashing(data):
     return NotImplementedError
 
-def lsh():
+def lsh(minhashed):
     return NotImplementedError
 
-def write_file():
+def write_file(data):
     return NotImplementedError
 
-def calculate_similarity():
+def calculate_similarity(data):
+    minhashed_data = minhashing(data)
+    lsh_output = lsh(minhashed_data)
+
     return NotImplementedError
 
 
