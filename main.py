@@ -15,6 +15,17 @@ Jaccard Similarity
 
 """
 
+def minhashing():
+    return NotImplementedError
+
+def lsh():
+    return NotImplementedError
+
+def write_file():
+    return NotImplementedError
+
+def calculate_similarity():
+    return NotImplementedError
 
 
 if __name__ == "__main__":
