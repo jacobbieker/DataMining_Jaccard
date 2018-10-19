@@ -18,6 +18,14 @@ row for minhasing
 
 columns for similarity check
 
+Minhashing: shingles are the movies, signature is just finding the 50-150 movies that each person rates, saving it as 
+the row/column number for that user, so if user 1 rated movies in movies 1,4,5, his signature would be sig(1,4,5) as each
+movie is a row
+
+Those signatures are then hashed to buckets in LSH, and then determines how similar two users are based on the number of
+matching shingles -> matching buckets
+
+
 
 
 """
