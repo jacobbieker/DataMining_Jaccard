@@ -29,13 +29,30 @@ matching shingles -> matching buckets
 
 
 """
+data = np.load('user_movie.npy')
+
+def minhashing(csr_matrix, num_users, num_movies):
+
+    signature = 120
+    sig_mat = np.zeros((signature, num_users))
+
+    # row order
+    for u in range(signature):
+        row = np.random.permutation(np.arange(num_movies))
+        row = tuple(row)
+        
+        # Swap the sparse rows
+        csr_matrix_nw = csr_matrix[row, :]
+
+        # find the first '1' in column
+        for i in range(num_users):
+            first = csr_matrix_nw.indices[csr_matrix_nw.indptr[i]:csr_matrix_nw.indptr[i + 1]].min()
+            sig_mat[u, i] = first
+
+    return sig_mat, signature
 
 
-def minhashing(data):
-    return NotImplementedError
-
-
-def lsh(minhashed):
+def lsh(data):
     """
     Takes minhashed values and computes LSH for the values
     :param minhashed:
@@ -44,9 +61,32 @@ def lsh(minhashed):
     return NotImplementedError
 
 
-def write_file(data):
-    return NotImplementedError
+def write_file(userU1U2, real_sparse):
 
+    _sparse = real_sparse.toarray()
+    lsh_user_pair = pairs
+    pairs = sorted(pairs)
+    user_pair = []
+
+    for user in pairs:
+        if user[0] < user[1]:
+            jaccard = calculate_similarity(user[0], user[1], _sparse)
+            if jaccard > 0.5:
+                user_pair.append((user[0] + 1, user[1] + 1, jaccard))
+
+        if user[0] > user[1]:
+            if (user[1], user[0]) in lsh_user_pair:
+                continue
+        else:
+            jaccard = calculate_similarity(user[0], user[1], _sparse)
+            if jaccard > 0.5:
+                lsh_user_pair.append((user[1] + 1, user[0] + 1, jaccard))
+
+    lsh_user_pair = sorted(lsh_user_pair)
+
+    with open("results.txt", "w") as f:
+        f.write("{0}, {1}\n".format(user[0], user[1]))
+    f.close()
 
 def calculate_similarity(data):
     minhashed_data = minhashing(data)
