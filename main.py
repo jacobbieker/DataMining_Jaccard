@@ -26,8 +26,6 @@ Those signatures are then hashed to buckets in LSH, and then determines how simi
 matching shingles -> matching buckets
 
 
-
-
 """
 data = np.load('user_movie.npy')
 
@@ -60,7 +58,7 @@ def lsh(data):
     """
     return NotImplementedError
 
-
+"""
 def write_file(userU1U2, real_sparse):
 
     _sparse = real_sparse.toarray()
@@ -87,7 +85,7 @@ def write_file(userU1U2, real_sparse):
     with open("results.txt", "w") as f:
         f.write("{0}, {1}\n".format(user[0], user[1]))
     f.close()
-
+"""
 def calculate_similarity(data):
     minhashed_data = minhashing(data)
     lsh_output = lsh(minhashed_data)
@@ -105,6 +103,8 @@ def convert_data(data):
     # Get unique values for user and movies
     num_users = np.max(data[:, 0]) + 1
     num_movies = np.max(data[:, 1]) + 1
+    print(num_users)
+    print(num_movies)
 
     matrix_values = np.ones(data.shape[0])
 
@@ -126,4 +126,6 @@ if __name__ == "__main__":
         # Set seed for random generator
         np.random.seed(int(arguments[1]))
         data = convert_data(np.load(arguments[2]))
+        minhashing(data, 103703, 17770)
         calculate_similarity(data)
+
