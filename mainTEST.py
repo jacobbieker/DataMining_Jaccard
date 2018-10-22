@@ -29,7 +29,7 @@ matching shingles -> matching buckets
 """
 data = np.load('user_movie.npy')
 
-def minhashing(csr_matrix, num_users, data, num_movies):
+def minhashing(csr_matrix, num_users, num_movies):
 
     signature = 120
     sig_mat = np.zeros((signature, num_users))
@@ -37,7 +37,7 @@ def minhashing(csr_matrix, num_users, data, num_movies):
     # row order
     
     for u in range(signature):
-        row = np.random.permutation(num_movies.max()+1)
+        row = np.random.permutation(num_movies+1)
         perm_matrix = csr_matrix[row, :]
         sig_mat[signature] = np.array(perm_matrix.argmax(axis = 0))
     """
@@ -106,14 +106,11 @@ def convert_data(data):
     """
 
     # Get unique values for user and movies
-    #num_users = np.max(data[:, 0]) + 1
-    num_users = np.array(data[:, 0])
-    num_movies = np.array(data[:, 1])
-    #num_movies = np.max(data[:, 1]) + 1
+    num_users = np.max(data[:, 0]) + 1
+    num_movies = np.max(data[:, 1]) + 1
     print(num_users)
     print(num_movies)
 
-    data = np.ones(len(data))
     matrix_values = np.ones(data.shape[0])
 
     csr_matrix = sparse.csr_matrix((matrix_values, (data[:, 0], data[:, 1])), shape=(num_users, num_movies))

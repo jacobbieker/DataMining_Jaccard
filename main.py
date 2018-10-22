@@ -29,6 +29,37 @@ matching shingles -> matching buckets
 """
 data = np.load('user_movie.npy')
 
+def to_bucket(num_buckets, num_rows, num_bins, signature):
+    """
+    Takes the signature break and returns the bucket it should be in
+
+    So for this, create a set of buckets of num_bins * num_rows, and place userIDs that have a signature that places them in
+    that set, then order the set by the number elements in each one and go from smallest to largest checking the jsim
+
+    Hash could just be split into the smaller chunks the sig and then mod it with number of buckets
+
+    Bands are the number of  chunks of the signature, rows are the number of elements in each band?
+
+
+    :param num_rows: Number of rows in signature, ie the length of the signature
+    :param num_buckets:
+    :param signature:
+    :return:
+    """
+
+    num_bins_in_signature = len(signature) / num_bins
+    buckets = []
+    bins = signature.array_split(num_bins_in_signature)
+    for bin in bins:
+
+    for i in range(num_bins_in_signature-1):
+        # Go through and get the "hashed" value from the columns, return the buckets for the signature
+        sub_sig = signature[i*num_bins:num_bins*(i+1)]
+
+
+    return NotImplementedError
+
+
 def minhashing(csr_matrix, num_users, num_movies):
 
     signature = 120
@@ -50,12 +81,16 @@ def minhashing(csr_matrix, num_users, num_movies):
     return sig_mat, signature
 
 
-def lsh(data):
+def lsh(sig_mat, signature):
     """
     Takes minhashed values and computes LSH for the values
     :param minhashed:
     :return:
     """
+
+    sig_mat = sparse.csc_matrix(sig_mat)
+
+
     return NotImplementedError
 
 """
