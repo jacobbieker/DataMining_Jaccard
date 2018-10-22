@@ -83,7 +83,7 @@ def minhashing(csr_matrix, num_users, num_movies):
 
     signature = 120
 
-    signature_matrix = np.zeros((signature, num_users), dtype='int16')
+    signature_matrix = np.zeros((signature, num_users), dtype='int32')
     print(signature_matrix.shape)
     #print("CSR Shape: " + str(csr_matrix.shape))
 
@@ -119,6 +119,71 @@ def signature_similarity(user1, user2, signature_matrix):
     similar = float(np.count_nonzero(signature_matrix[:, user1] == signature_matrix[:, user2])) \
               / len(signature_matrix[:, user1])
     return similar
+
+def jaccards_similarity(user1, user2, sparse_matrix):
+    """     Calculate and return the Jaccard similarity between two users (user1 and user2) with the sparse matrix   """
+    sum_val = np.sum(sparse_matrix[:, user1] & sparse_matrix[:, user2])
+    sim_val = np.sum(sparse_matrix[:, user1] | sparse_matrix[:, user2])
+    jacard_sim = float(sum_val) / float(sim_val)
+    return jacard_sim
+
+def output(original_sparse, unique_set):
+    """
+    Create the txt file with the candidate pairs that have a real jaccard similarity larger than 0.5
+    :param original_sparse -- the original sparse matrix
+    :param unique_set -- the unique set found with banding of which we calculate the jaccard similarity
+    """
+    print("Outputing results.. ")
+
+    # make from the sparse array a real array, such that we now also put into
+    # memory the '0's.
+    sparse_array = original_sparse.toarray()
+
+    # order the set on the first element of the tuples, iterating over a list is faster than over a set
+    # However the in function is slower with a list, but this is done less
+    # often than the iterations
+    original_unique_set = unique_set
+    unique_set = sorted(unique_set)
+
+    # empty list which we append the found pairs, so that we can sort at the end again; needed because
+    #  user2 can > user1
+    user_pair_list = []
+    # check if the similarity is really > 0.5 with the jaccard similarity and
+    # add to the txt file if user1<user2
+    for pair in unique_set:
+        # if user1 < user2 and jaccard similarity > 0.5 add to txt file
+        if pair[0] < pair[1]:
+            sim = jaccards_similarity(pair[0], pair[1], sparse_array)
+            if sim > 0.5:
+                # add +1 to users because we started counting from 0 in python
+                user_pair_list.append((pair[0] + 1, pair[1] + 1))
+
+        # if user 2 is larger than user 1 and combine (user2, user1) is already in unique_set continue with loop
+        # else calculate similarity
+        elif pair[0] > pair[1]:
+            # if pair is already in set skip it and go into next iteration for loop; E.g. (3,1) is same as (1,3) thus
+            #  skip it
+            if (pair[1], pair[0]) in original_unique_set:
+                continue
+            # if this is note the case add it with user 2 at position user 1, such that the txt file's user1 is always
+            # smaller than user 2
+            else:
+                sim = jaccards_similarity(pair[0], pair[1], sparse_array)
+                if sim > 0.5:
+                    # add +1 to users because we started counting from 0 in
+                    # python
+                    user_pair_list.append((pair[1] + 1, pair[0] + 1))
+
+    # sort user pair list on first user
+    user_pair_list = sorted(user_pair_list)
+
+    print("Length of user pairs: " + str(len(user_pair_list)))
+
+    # write to txt file
+    with open('results.txt', 'w') as f:
+        f.write('\n'.join('%s,%s' % user_pair for user_pair in user_pair_list))
+    f.close()
+    print('User-Pair found: ', len(user_pair_list))
 
 def lsh(sig_mat, signature, num_bands):
     """
@@ -237,7 +302,7 @@ def convert_data(data):
 
     matrix_values = np.ones(data.shape[0])
 
-    csr_matrix = sparse.csc_matrix((matrix_values, (data[:, 1], data[:, 0])), shape=(num_movies, num_users))
+    csr_matrix = sparse.csc_matrix((matrix_values, (data[:, 1], data[:, 0])), shape=(num_movies, num_users), dtype='b')
 
     # Now get the ones for each element
     return csr_matrix
@@ -256,7 +321,8 @@ if __name__ == "__main__":
         np.random.seed(int(arguments[1]))
         data = convert_data(np.load(arguments[2]))
         sig_mat, signature = minhashing(data, 103703, 17770)
-        lsh(sig_mat, signature, num_bands=20)
-        calculate_similarity(data)
+        unique_set = lsh(sig_mat, signature, num_bands=20)
+        output(data, unique_set)
+        #calculate_similarity(data)
         print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
 
