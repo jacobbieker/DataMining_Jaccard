@@ -37,8 +37,9 @@ def minhashing(csr_matrix, num_users, num_movies):
     # row order
     
     for u in range(signature):
-        row = np.random.permutation(num_movies+1)
+        row = np.random.permutation(num_movies)
         perm_matrix = csr_matrix[row, :]
+        print(u)
         sig_mat[signature] = np.array(perm_matrix.argmax(axis = 0))
     """
         # Swap the sparse rows

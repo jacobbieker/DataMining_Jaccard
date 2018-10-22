@@ -50,8 +50,6 @@ def to_bucket(num_buckets, num_rows, num_bins, signature):
     num_bins_in_signature = len(signature) / num_bins
     buckets = []
     bins = signature.array_split(num_bins_in_signature)
-    for bin in bins:
-
     for i in range(num_bins_in_signature-1):
         # Go through and get the "hashed" value from the columns, return the buckets for the signature
         sub_sig = signature[i*num_bins:num_bins*(i+1)]
@@ -61,24 +59,49 @@ def to_bucket(num_buckets, num_rows, num_bins, signature):
 
 
 def minhashing(csr_matrix, num_users, num_movies):
+    """
+    Minhashing has to find the first (or last) 1 in the column where a given column is a user
+
+    Minhashing takes a random number of permutations of the rows (movies) of M and determines for each of those
+    where the first 1 shows up in a set of hash values
+
+    The hash vales are represented as a column, so a new matrix M is the signature matrix where users are still the columns
+    but now the rows are the signatures, so from a (100000, 17770) matrix to a (120, 17770) matrix
+
+    Then LSH breaks the signature matrix into b bands of r rows each, and hashes those to the buckets somehow
+
+
+    :param csr_matrix:
+    :param num_users:
+    :param num_movies:
+    :return:
+    """
 
     signature = 120
-    sig_mat = np.zeros((signature, num_users))
 
-    # row order
-    for u in range(signature):
-        row = np.random.permutation(np.arange(num_movies))
-        row = tuple(row)
-        
-        # Swap the sparse rows
-        csr_matrix_nw = csr_matrix[row, :]
+    signature_matrix = np.zeros((signature, num_users))
+    print(signature_matrix.shape)
+    print("CSR Shape: " + str(csr_matrix.shape))
 
-        # find the first '1' in column
-        for i in range(num_users):
-            first = csr_matrix_nw.indices[csr_matrix_nw.indptr[i]:csr_matrix_nw.indptr[i + 1]].min()
-            sig_mat[u, i] = first
+    # now get the 120 permutations for the signatures
+    for permutation in range(signature):
+        print("Permutation: " + str(permutation))
+        row_order = np.random.permutation(np.arange(num_movies))
+        print(row_order.shape)
+        print(row_order)
 
-    return sig_mat, signature
+        permuted_csr_matrix = csr_matrix[row_order, :]
+        print(permuted_csr_matrix.shape)
+
+        # Now get the first (or last) 1 in each column
+        # Number of columns should be the number of users
+        print(num_users)
+        for i in range(num_movies-1):
+            # This chooses one column at a time and gets the min index for it?
+            first = permuted_csr_matrix.indices[permuted_csr_matrix.indptr[i]:permuted_csr_matrix.indptr[i + 1]].min()
+            signature_matrix[permutation, i] = first
+
+    return signature_matrix, signature
 
 
 def lsh(sig_mat, signature):
@@ -143,7 +166,7 @@ def convert_data(data):
 
     matrix_values = np.ones(data.shape[0])
 
-    csr_matrix = sparse.csr_matrix((matrix_values, (data[:, 0], data[:, 1])), shape=(num_users, num_movies))
+    csr_matrix = sparse.csr_matrix((matrix_values, (data[:, 1], data[:, 0])), shape=(num_movies, num_users))
 
     # Now get the ones for each element
     return csr_matrix
