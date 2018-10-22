@@ -1,5 +1,7 @@
 import numpy as np
 import os
+import time
+start_time = time.clock()
 import sys
 import scipy.sparse as sparse
 import itertools
@@ -256,4 +258,5 @@ if __name__ == "__main__":
         sig_mat, signature = minhashing(data, 103703, 17770)
         lsh(sig_mat, signature, num_bands=20)
         calculate_similarity(data)
+        print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
 
