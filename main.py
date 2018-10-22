@@ -81,31 +81,43 @@ def minhashing(csr_matrix, num_users, num_movies):
 
     signature_matrix = np.zeros((signature, num_users))
     print(signature_matrix.shape)
-    print("CSR Shape: " + str(csr_matrix.shape))
+    #print("CSR Shape: " + str(csr_matrix.shape))
 
     # now get the 120 permutations for the signatures
     for permutation in range(signature):
-        print("Permutation: " + str(permutation))
+        #print("Permutation: " + str(permutation))
         row_order = np.random.permutation(np.arange(num_movies))
-        print(row_order.shape)
-        print(row_order)
+        #print(row_order.shape)
+        #print(row_order)
 
         permuted_csr_matrix = csr_matrix[row_order, :]
-        print(permuted_csr_matrix.shape)
+        #print(permuted_csr_matrix.shape)
 
         # Now get the first (or last) 1 in each column
         # Number of columns should be the number of users
-        print(num_users)
-        for i in range(num_movies-1):
+        #print(num_users)
+        for i in range(num_users):
             # This chooses one column at a time and gets the min index for it?
+            #print(permuted_csr_matrix.indptr[i])
+            #print(permuted_csr_matrix.indices[permuted_csr_matrix.indptr[i]])
             first = permuted_csr_matrix.indices[permuted_csr_matrix.indptr[i]:permuted_csr_matrix.indptr[i + 1]].min()
             signature_matrix[permutation, i] = first
+
+    test_sig = sparse.csr_matrix(signature_matrix)
+
+    print("Num Zeros: " + str(test_sig.nnz))
+    print(signature_matrix)
 
     return signature_matrix, signature
 
 
 def lsh(sig_mat, signature):
     """
+    The hash vales are represented as a column, so a new matrix M is the signature matrix where users are still the columns
+    but now the rows are the signatures, so from a (100000, 17770) matrix to a (120, 17770) matrix
+
+    Then LSH breaks the signature matrix into b bands of r rows each, and hashes those to the buckets somehow
+
     Takes minhashed values and computes LSH for the values
     :param minhashed:
     :return:
@@ -166,7 +178,7 @@ def convert_data(data):
 
     matrix_values = np.ones(data.shape[0])
 
-    csr_matrix = sparse.csr_matrix((matrix_values, (data[:, 1], data[:, 0])), shape=(num_movies, num_users))
+    csr_matrix = sparse.csc_matrix((matrix_values, (data[:, 1], data[:, 0])), shape=(num_movies, num_users))
 
     # Now get the ones for each element
     return csr_matrix
