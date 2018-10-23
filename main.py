@@ -1,7 +1,4 @@
 import numpy as np
-import time
-
-start_time = time.clock()
 import sys
 import scipy.sparse as sparse
 import itertools
@@ -46,7 +43,7 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
     :return: The unique sets of the data
     """
 
-    bucket = []
+    buckets = []
 
     num_rows = int(np.floor(signature / num_bands))
     # Make the sparse matrix dense for the jaccard similarity check
@@ -58,7 +55,7 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
     total_ones_found = 0
     for bands in range(num_bands):
 
-        # These are the one in the band, so good for csr matrix
+        # These are the one in the band
         band = sig_mat[current_row:num_rows + current_row, :]
         current_row += num_rows
 
@@ -70,16 +67,15 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
         bucket_array = np.array(np.split(s_indexes, np.nonzero(sorted_indexes[1:] > sorted_indexes[:-1])[0] + 1))
 
         # Only get buckets with more than one user
-        for position in range(len(bucket_array)):
-            if len(bucket_array[position]) > 1:
-                bucket.append(bucket_array[position])
+        for index in range(len(bucket_array)):
+            if len(bucket_array[index]) > 1:
+                buckets.append(bucket_array[index])
 
         # Go through all the buckets, finding the actual similar pairs
-        for i in range(len(bucket)):
-            # creates a generator to go through all the combinations in a given bucket
-            user_pairs = set(pair for pair in itertools.combinations(bucket[i], 2))
+        for i in range(len(buckets)):
+            # Creates a generator to go through all the combinations in a given bucket
+            user_pairs = set(pair for pair in itertools.combinations(buckets[i], 2))
 
-            user_pairs = user_pairs.difference(unique_set)
             # Count how many buckets both pairs have in common vs total number of buckets to get the answer
             for pair in user_pairs:
                 # Check if already in unique_set
@@ -87,7 +83,7 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
                     # This is a much faster check of the similarity, not always accurate though, could also eliminate
                     # some truly similar objects, but is much faster, so have lower threshold for this one
                     sim = signature_similarity(pair[0], pair[1], sig_mat)
-                    if sim > 0.35:
+                    if sim > 0.4:
                         # Much more time consuming, but makes sure it is actually higher than 0.5
                         j_sim = bool_jaccards_similarity(pair[0], pair[1], sparse_matrix)
                         if j_sim > 0.5:
@@ -102,13 +98,16 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
                                 total_ones_found = len(unique_set)
 
     # Also write it when its all done
-    # check Unique set against the real results
-
     write_file(unique_set)
     return unique_set
 
 
 def write_file(unique_set):
+    """
+    Writes the unique set to the results file
+    :param unique_set: Python set of pairs with Jaccard sim > 0.5
+    :return:
+    """
     # write to txt file
     written_values = 0
     unique_set = sorted(unique_set)
@@ -127,8 +126,8 @@ def signature_similarity(user1, user2, signature_matrix):
     :param signature_matrix: The dense signature matrix
     :return: The similarity score based on the signature matrix for two users
     """
-    sim_score = float(np.count_nonzero(signature_matrix[:, user1] == signature_matrix[:, user2])) \
-                / len(signature_matrix[:, user1])
+    sim_score = float(np.count_nonzero(signature_matrix[:, user1] == signature_matrix[:, user2]))
+    sim_score /= signature_matrix.shape[0]
     return sim_score
 
 
@@ -168,7 +167,6 @@ def convert_data(data):
 
 
 if __name__ == "__main__":
-    # Run when used
     # Get arguments
     arguments = sys.argv
     if len(arguments) < 3:
@@ -181,4 +179,3 @@ if __name__ == "__main__":
         data = convert_data(np.load(arguments[2]))
         sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
         unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
-        print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
