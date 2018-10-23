@@ -156,9 +156,6 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
         # sorted by longest length buckets:
         bucket = sorted(bucket, key=len)
 
-        # Now cut off the largest buckets to make it faster:
-        #bucket = bucket[:int(len(bucket))]
-
         # finding the unique candidate pairs with a similarity larger than 0.5 in the signature matrix
         # note that this also counts (3,5) and (5,3) separately. This double counting
         # is removed later on during creation of the txt file
@@ -265,7 +262,6 @@ if __name__ == "__main__":
         data = convert_data(np.load(arguments[2]))
         sig_mat, signature = minhashing(data, 103703, 17770)
         unique_set = lsh(sig_mat, signature, num_bands=19, sparse_matrix=data)
-        output(data, unique_set)
         #calculate_similarity(data)
         print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
 
