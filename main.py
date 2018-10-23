@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import time
 start_time = time.clock()
 import sys
@@ -31,36 +32,6 @@ matching shingles -> matching buckets
 
 
 """
-data = np.load('user_movie.npy')
-
-def to_bucket(num_buckets, num_rows, num_bins, signature):
-    """
-    Takes the signature break and returns the bucket it should be in
-
-    So for this, create a set of buckets of num_bins * num_rows, and place userIDs that have a signature that places them in
-    that set, then order the set by the number elements in each one and go from smallest to largest checking the jsim
-
-    Hash could just be split into the smaller chunks the sig and then mod it with number of buckets
-
-    Bands are the number of  chunks of the signature, rows are the number of elements in each band?
-
-
-    :param num_rows: Number of rows in signature, ie the length of the signature
-    :param num_buckets:
-    :param signature:
-    :return:
-    """
-
-    num_bins_in_signature = len(signature) / num_bins
-    buckets = []
-    bins = signature.array_split(num_bins_in_signature)
-    for i in range(num_bins_in_signature-1):
-        # Go through and get the "hashed" value from the columns, return the buckets for the signature
-        sub_sig = signature[i*num_bins:num_bins*(i+1)]
-
-
-    return NotImplementedError
-
 
 def minhashing(csr_matrix, num_users, num_movies):
     """
@@ -83,7 +54,7 @@ def minhashing(csr_matrix, num_users, num_movies):
 
     signature = 120
 
-    signature_matrix = np.zeros((signature, num_users), dtype='int32')
+    signature_matrix = np.zeros((signature, num_users), dtype='int16')
     print(signature_matrix.shape)
     #print("CSR Shape: " + str(csr_matrix.shape))
 
@@ -95,24 +66,136 @@ def minhashing(csr_matrix, num_users, num_movies):
         #print(row_order)
 
         permuted_csr_matrix = csr_matrix[row_order, :]
-        #print(permuted_csr_matrix.shape)
 
         # Now get the first (or last) 1 in each column
         # Number of columns should be the number of users
-        #print(num_users)
         for i in range(num_users):
             # This chooses one column at a time and gets the min index for it?
-            #print(permuted_csr_matrix.indptr[i])
-            #print(permuted_csr_matrix.indices[permuted_csr_matrix.indptr[i]])
             first = permuted_csr_matrix.indices[permuted_csr_matrix.indptr[i]:permuted_csr_matrix.indptr[i + 1]].min()
             signature_matrix[permutation, i] = first
 
+    # convert to csr matrix because of large number of zeros present still...
     test_sig = sparse.csr_matrix(signature_matrix)
+
+    # Free up memory
+
+    print("Size of full Sig Matrix: " + str(sys.getsizeof(signature_matrix)))
+    print("Size of CSR Matrix: " + str(sys.getsizeof(test_sig)))
 
     print("Num Zeros: " + str(test_sig.nnz))
     print(signature_matrix)
 
+    #del signature_matrix
+
     return signature_matrix, signature
+
+
+def lsh(sig_mat, signature, num_bands, sparse_matrix):
+    """
+    The hash vales are represented as a column, so a new matrix M is the signature matrix where users are still the columns
+    but now the rows are the signatures, so from a (100000, 17770) matrix to a (120, 17770) matrix
+
+    Then LSH breaks the signature matrix into b bands of r rows each, and hashes those to the buckets somehow
+
+    Takes minhashed values and computes LSH for the values
+    :param minhashed:
+    :return:
+    """
+
+    bucket = []
+
+    num_rows = int(np.floor(signature / num_bands))
+    sparse_matrix = sparse_matrix.toarray()
+
+    # Go through each band
+    current_row = 0
+    for bands in range(num_bands):
+
+        # These are the one in the band, so good for csr matrix
+        band = sig_mat[current_row:num_rows + current_row, :]
+        current_row += num_rows
+
+        # Create the buckets
+        print("Band Maxes: " + str(band.max(1) + 1))
+
+        indexes = np.ravel_multi_index(band, band.max(1) + 1)
+        s_indexes = indexes.argsort()
+        sorted_indexes = indexes[s_indexes]
+
+        bucket_array = np.array(np.split(s_indexes, np.nonzero(sorted_indexes[1:] > sorted_indexes[:-1])[0] + 1))
+
+
+        # Sort buckets by their length, skip those with length < 2, and work up to larger numbers
+
+
+        # Only get buckets with more than one user
+        for position in range(len(bucket_array)):
+            if len(bucket_array[position]) > 1:
+                bucket.append(bucket_array[position])
+
+        # Remove buckets with same tuples
+
+        x = map(tuple, bucket)
+        bucket = set(x)
+        bucket = list(bucket)
+
+        # Largest bucket size
+        def lengths(x):
+            if isinstance(x,list):
+                yield len(x)
+                for y in x:
+                    yield from lengths(y)
+
+        big_bucket = 0
+        for position in range(len(bucket)):
+            if len(bucket[position]) > big_bucket:
+                big_bucket = len(bucket[position])
+        print("\nLargeset Bucket: " + str(big_bucket))
+
+        # sorted by longest length buckets:
+        bucket = sorted(bucket, key=len)
+
+        # Now cut off the largest buckets to make it faster:
+        bucket = bucket[:int(len(bucket))-5]
+
+        # finding the unique candidate pairs with a similarity larger than 0.5 in the signature matrix
+        # note that this also counts (3,5) and (5,3) separately. This double counting
+        # is removed later on during creation of the txt file
+        unique_set = set()
+        for i in range(len(bucket)):
+            # generate a generator expression for the combinations of the pairs in
+            # a bucket
+            large_user_pair = set(
+                pair for pair in itertools.combinations(bucket[i], 2))
+
+            large_user_pair = large_user_pair.difference(unique_set)
+            # Count how many buckets both pairs have in common vs total number of buckets to get the answer
+            for j in large_user_pair:
+                # Check if already in unique_set
+                if j[0] < j[1]:
+                    continue
+                else:
+                    # In the wrong order
+                    j = (j[1], j[0])
+                if j not in unique_set:
+                    # This is a much faster check of the similarity, not always accurate though
+                    sim = signature_similarity(
+                        j[0], j[1], sig_mat)
+                    if sim > 0.5:
+                        # Much more time consuming, but makes sure it is actually higher than 0.5
+                        j_sim = jaccards_similarity(j[0], j[1], sparse_matrix)
+                        if j_sim > 0.5:
+                            unique_set.add(j)
+
+    print(len(unique_set))
+    return unique_set
+
+def calculate_similarity(data):
+    minhashed_data = minhashing(data)
+    lsh_output = lsh(minhashed_data)
+
+    return NotImplementedError
+
 
 def signature_similarity(user1, user2, signature_matrix):
     """    Calculate and return the similarity between two users (user1 and user2) with the signature matrix    """
@@ -120,12 +203,14 @@ def signature_similarity(user1, user2, signature_matrix):
               / len(signature_matrix[:, user1])
     return similar
 
+
 def jaccards_similarity(user1, user2, sparse_matrix):
     """     Calculate and return the Jaccard similarity between two users (user1 and user2) with the sparse matrix   """
     sum_val = np.sum(sparse_matrix[:, user1] & sparse_matrix[:, user2])
     sim_val = np.sum(sparse_matrix[:, user1] | sparse_matrix[:, user2])
     jacard_sim = float(sum_val) / float(sim_val)
     return jacard_sim
+
 
 def output(original_sparse, unique_set):
     """
@@ -185,108 +270,6 @@ def output(original_sparse, unique_set):
     f.close()
     print('User-Pair found: ', len(user_pair_list))
 
-def lsh(sig_mat, signature, num_bands):
-    """
-    The hash vales are represented as a column, so a new matrix M is the signature matrix where users are still the columns
-    but now the rows are the signatures, so from a (100000, 17770) matrix to a (120, 17770) matrix
-
-    Then LSH breaks the signature matrix into b bands of r rows each, and hashes those to the buckets somehow
-
-    Takes minhashed values and computes LSH for the values
-    :param minhashed:
-    :return:
-    """
-
-    #sig_mat = sparse.csc_matrix(sig_mat)
-
-    bucket = []
-
-    num_rows = signature / num_bands
-
-    # Go through each band
-    current_row = 0
-    for bands in range(num_bands):
-
-        band = sig_mat[current_row:int(num_rows) + current_row, :]
-        current_row += int(num_rows)
-
-        # Create the buckets
-
-        indexes = np.ravel_multi_index(band.astype(int), band.max(1).astype(int) + 1)
-        s_indexes = indexes.argsort()
-        sorted_indexes = indexes[s_indexes]
-
-        bucket_array = np.array(np.split(s_indexes, np.nonzero(sorted_indexes[1:] > sorted_indexes[:-1])[0] + 1))
-
-        # Only get buckets with more than one user
-        for position in range(len(bucket_array)):
-            if len(bucket_array[position]) > 1:
-                bucket.append(bucket_array[position])
-
-
-        # Remove buckets with same tuples
-
-        x = map(tuple, bucket)
-        bucket = set(x)
-        bucket = list(bucket)
-
-        # finding the unique candidate pairs with a similarity larger than 0.5 in the signature matrix
-        # note that this also counts (3,5) and (5,3) separately. This double counting
-        # is removed later on during creation of the txt file
-        unique_set = set()
-        for i in range(len(bucket)):
-            # generate a generator expression for the combinations of the pairs in
-            # a bucket
-            large_user_pair = set(
-                pair for pair in itertools.combinations(bucket[i], 2))
-
-            large_user_pair = large_user_pair.difference(unique_set)
-            for j in large_user_pair:
-                sim = signature_similarity(
-                    j[0], j[1], sig_mat)
-                if sim > 0.5:
-                    unique_set.add(j)
-
-
-    print(len(unique_set))
-    print(unique_set)
-    return unique_set
-
-"""
-def write_file(userU1U2, real_sparse):
-
-    _sparse = real_sparse.toarray()
-    lsh_user_pair = pairs
-    pairs = sorted(pairs)
-    user_pair = []
-
-    for user in pairs:
-        if user[0] < user[1]:
-            jaccard = calculate_similarity(user[0], user[1], _sparse)
-            if jaccard > 0.5:
-                user_pair.append((user[0] + 1, user[1] + 1, jaccard))
-
-        if user[0] > user[1]:
-            if (user[1], user[0]) in lsh_user_pair:
-                continue
-        else:
-            jaccard = calculate_similarity(user[0], user[1], _sparse)
-            if jaccard > 0.5:
-                lsh_user_pair.append((user[1] + 1, user[0] + 1, jaccard))
-
-    lsh_user_pair = sorted(lsh_user_pair)
-
-    with open("results.txt", "w") as f:
-        f.write("{0}, {1}\n".format(user[0], user[1]))
-    f.close()
-"""
-def calculate_similarity(data):
-    minhashed_data = minhashing(data)
-    lsh_output = lsh(minhashed_data)
-
-    return NotImplementedError
-
-
 def convert_data(data):
     """
     Converts the data storage in the .npy file to a sparse matrix
@@ -321,7 +304,7 @@ if __name__ == "__main__":
         np.random.seed(int(arguments[1]))
         data = convert_data(np.load(arguments[2]))
         sig_mat, signature = minhashing(data, 103703, 17770)
-        unique_set = lsh(sig_mat, signature, num_bands=20)
+        unique_set = lsh(sig_mat, signature, num_bands=19, sparse_matrix=data)
         output(data, unique_set)
         #calculate_similarity(data)
         print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
