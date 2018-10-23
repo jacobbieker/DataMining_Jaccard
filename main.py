@@ -1,9 +1,11 @@
 import numpy as np
 import time
+
 start_time = time.clock()
 import sys
 import scipy.sparse as sparse
 import itertools
+
 
 def minhashing(csc_matrix, num_users, num_movies):
     """
@@ -36,12 +38,12 @@ def minhashing(csc_matrix, num_users, num_movies):
 
 def lsh(sig_mat, signature, num_bands, sparse_matrix):
     """
-
-    :param sig_mat:
-    :param signature:
-    :param num_bands:
-    :param sparse_matrix:
-    :return:
+    LSH takes the signature matrix and "hashes" them into buckets that are then used to find the similarity
+    :param sig_mat: Signature Matrix, dense matrix
+    :param signature: Length of the signature
+    :param num_bands: Number of bands to use
+    :param sparse_matrix: The sparse original matrix
+    :return: The unique sets of the data
     """
 
     bucket = []
@@ -67,45 +69,41 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
 
         bucket_array = np.array(np.split(s_indexes, np.nonzero(sorted_indexes[1:] > sorted_indexes[:-1])[0] + 1))
 
-        # Remove buckets with same tuples
-        #print(len(bucket_array))
-        #x = map(tuple, bucket_array)
-        #bucket_array = set(x)
-        #bucket_array = list(bucket_array)
-        #print(len(bucket_array))
-        #exit()
         # Only get buckets with more than one user
         for position in range(len(bucket_array)):
             if len(bucket_array[position]) > 1:
                 bucket.append(bucket_array[position])
 
-        # finding the unique candidate pairs with a similarity larger than 0.5
+        # Go through all the buckets, finding the actual similar pairs
         for i in range(len(bucket)):
             # creates a generator to go through all the combinations in a given bucket
-            user_pairs = set(
-                pair for pair in itertools.combinations(bucket[i], 2))
+            user_pairs = set(pair for pair in itertools.combinations(bucket[i], 2))
 
             user_pairs = user_pairs.difference(unique_set)
             # Count how many buckets both pairs have in common vs total number of buckets to get the answer
             for pair in user_pairs:
                 # Check if already in unique_set
-                if pair not in unique_set:
+                if pair not in unique_set and (pair[1], pair[0]) not in unique_set:
                     # This is a much faster check of the similarity, not always accurate though, could also eliminate
                     # some truly similar objects, but is much faster, so have lower threshold for this one
                     sim = signature_similarity(pair[0], pair[1], sig_mat)
-                    if sim > 0.40:
+                    if sim > 0.35:
                         # Much more time consuming, but makes sure it is actually higher than 0.5
                         j_sim = bool_jaccards_similarity(pair[0], pair[1], sparse_matrix)
                         if j_sim > 0.5:
-                            unique_set.add(pair)
-
-                # Now write out as it goes
-                if len(unique_set) > total_ones_found + 10:
-                    # Write every 10 as a checkpoint
-                    write_file(unique_set)
-                    total_ones_found = len(unique_set)
+                            if pair[0] < pair[1]:
+                                unique_set.add(pair)
+                            else:
+                                unique_set.add((pair[1], pair[0]))
+                            # Now write out as it goes
+                            if len(unique_set) > total_ones_found + 10:
+                                # Write every 10 as a checkpoint
+                                write_file(unique_set)
+                                total_ones_found = len(unique_set)
 
     # Also write it when its all done
+    # check Unique set against the real results
+
     write_file(unique_set)
     return unique_set
 
@@ -115,18 +113,10 @@ def write_file(unique_set):
     written_values = 0
     unique_set = sorted(unique_set)
     # Now check if there are duplicates
-    with open("results_all.txt", "w") as f:
+    with open("results.txt", "w") as f:
         for set in unique_set:
-            if set[0] < set[1]:
-                f.write(str(set[0]) + "," + str(set[1]) + "\n")
-                written_values += 1
-            elif set[0] > set[1]:
-                if (set[1], set[0]) not in unique_set:
-                    f.write(str(set[1]) + "," + str(set[0]) + "\n")
-                    written_values += 1
-
-    #print('User-Pair found: ', len(unique_set))
-    #print("Users printed: " + str(written_values))
+            f.write(str(set[0]) + "," + str(set[1]) + "\n")
+            written_values += 1
 
 
 def signature_similarity(user1, user2, signature_matrix):
@@ -151,12 +141,9 @@ def bool_jaccards_similarity(user1, user2, dense_matrix):
     :return: The Jaccard similarity
     """
     # Numerator, the intersection of both users
-    sum_val = np.sum(dense_matrix[:, user1] & dense_matrix[:, user2])
-    # Denominator, the union of both users, so all the possibilities
-    sim_val = np.sum(dense_matrix[:, user1] | dense_matrix[:, user2])
-    jacard_sim = sum_val / sim_val
-
-
+    intersection = np.logical_and(dense_matrix[:, user1], dense_matrix[:, user2])
+    union = np.logical_or(dense_matrix[:, user1], dense_matrix[:, user2])
+    jacard_sim = intersection.sum() / float(union.sum())
 
     return jacard_sim
 
@@ -195,24 +182,3 @@ if __name__ == "__main__":
         sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
         unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
         print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
-        # TODO REMOVE THIS LATER
-        np.random.seed(int(57438))
-        data = convert_data(np.load(arguments[2]))
-        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
-        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
-        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/2))
-        np.random.seed(int(1337))
-        data = convert_data(np.load(arguments[2]))
-        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
-        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
-        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/3))
-        np.random.seed(int(91823))
-        data = convert_data(np.load(arguments[2]))
-        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
-        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
-        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/4))
-        np.random.seed(int(2347891))
-        data = convert_data(np.load(arguments[2]))
-        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
-        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
-        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/5))
