@@ -108,14 +108,10 @@ def write_file(unique_set):
     :param unique_set: Python set of pairs with Jaccard sim > 0.5
     :return:
     """
-    # write to txt file
-    written_values = 0
     unique_set = sorted(unique_set)
-    # Now check if there are duplicates
     with open("results.txt", "w") as f:
         for set in unique_set:
             f.write(str(set[0]) + "," + str(set[1]) + "\n")
-            written_values += 1
 
 
 def signature_similarity(user1, user2, signature_matrix):
@@ -153,8 +149,6 @@ def convert_data(data):
     :param data:
     :return: Compressed Sparse Row matrix for use in minhashing
     """
-
-    # Get unique values for user and movies
     num_users = np.max(data[:, 0]) + 1
     num_movies = np.max(data[:, 1]) + 1
 
