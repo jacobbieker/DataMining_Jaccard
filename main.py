@@ -5,7 +5,6 @@ import sys
 import scipy.sparse as sparse
 import itertools
 
-
 def minhashing(csc_matrix, num_users, num_movies):
     """
     Does the minhashing on a CSC sparse matrix, returning the dense signature matrix
@@ -37,13 +36,11 @@ def minhashing(csc_matrix, num_users, num_movies):
 
 def lsh(sig_mat, signature, num_bands, sparse_matrix):
     """
-    The hash vales are represented as a column, so a new matrix M is the signature matrix where users are still the columns
-    but now the rows are the signatures, so from a (100000, 17770) matrix to a (120, 17770) matrix
 
-    Then LSH breaks the signature matrix into b bands of r rows each, and hashes those to the buckets somehow
-
-    Takes minhashed values and computes LSH for the values
-    :param minhashed:
+    :param sig_mat:
+    :param signature:
+    :param num_bands:
+    :param sparse_matrix:
     :return:
     """
 
@@ -71,10 +68,12 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
         bucket_array = np.array(np.split(s_indexes, np.nonzero(sorted_indexes[1:] > sorted_indexes[:-1])[0] + 1))
 
         # Remove buckets with same tuples
-        x = map(tuple, bucket_array)
-        bucket_array = set(x)
-        bucket_array = list(bucket_array)
-
+        #print(len(bucket_array))
+        #x = map(tuple, bucket_array)
+        #bucket_array = set(x)
+        #bucket_array = list(bucket_array)
+        #print(len(bucket_array))
+        #exit()
         # Only get buckets with more than one user
         for position in range(len(bucket_array)):
             if len(bucket_array[position]) > 1:
@@ -92,9 +91,9 @@ def lsh(sig_mat, signature, num_bands, sparse_matrix):
                 # Check if already in unique_set
                 if pair not in unique_set:
                     # This is a much faster check of the similarity, not always accurate though, could also eliminate
-                    # some truly similar objects, but is much faster
+                    # some truly similar objects, but is much faster, so have lower threshold for this one
                     sim = signature_similarity(pair[0], pair[1], sig_mat)
-                    if sim > 0.25:
+                    if sim > 0.40:
                         # Much more time consuming, but makes sure it is actually higher than 0.5
                         j_sim = bool_jaccards_similarity(pair[0], pair[1], sparse_matrix)
                         if j_sim > 0.5:
@@ -116,7 +115,7 @@ def write_file(unique_set):
     written_values = 0
     unique_set = sorted(unique_set)
     # Now check if there are duplicates
-    with open("results.txt", "w") as f:
+    with open("results_all.txt", "w") as f:
         for set in unique_set:
             if set[0] < set[1]:
                 f.write(str(set[0]) + "," + str(set[1]) + "\n")
@@ -126,8 +125,8 @@ def write_file(unique_set):
                     f.write(str(set[1]) + "," + str(set[0]) + "\n")
                     written_values += 1
 
-    print('User-Pair found: ', len(unique_set))
-    print("Users printed: " + str(written_values))
+    #print('User-Pair found: ', len(unique_set))
+    #print("Users printed: " + str(written_values))
 
 
 def signature_similarity(user1, user2, signature_matrix):
@@ -156,6 +155,9 @@ def bool_jaccards_similarity(user1, user2, dense_matrix):
     # Denominator, the union of both users, so all the possibilities
     sim_val = np.sum(dense_matrix[:, user1] | dense_matrix[:, user2])
     jacard_sim = sum_val / sim_val
+
+
+
     return jacard_sim
 
 
@@ -193,3 +195,24 @@ if __name__ == "__main__":
         sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
         unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
         print("\nTime Taken: %.2s minutes" % ((time.clock() - start_time) / 60))
+        # TODO REMOVE THIS LATER
+        np.random.seed(int(57438))
+        data = convert_data(np.load(arguments[2]))
+        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
+        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
+        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/2))
+        np.random.seed(int(1337))
+        data = convert_data(np.load(arguments[2]))
+        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
+        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
+        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/3))
+        np.random.seed(int(91823))
+        data = convert_data(np.load(arguments[2]))
+        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
+        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
+        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/4))
+        np.random.seed(int(2347891))
+        data = convert_data(np.load(arguments[2]))
+        sig_mat, signature = minhashing(data, data.shape[1], data.shape[0])
+        unique_set = lsh(sig_mat, signature, num_bands=20, sparse_matrix=data)
+        print("\nTime Taken: %.2s minutes" % (((time.clock() - start_time) / 60)/5))
